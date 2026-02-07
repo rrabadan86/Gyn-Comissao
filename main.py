@@ -17,10 +17,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # --- CONFIGURAÇÕES DE AMBIENTE (Segurança) ---
-# As senhas virão dos "Secrets" do GitHub
-EMAIL_REMETENTE = os.environ.get("EMAIL_USER")  # Seu email
-SENHA_APP = os.environ.get("EMAIL_PASS")        # Sua senha de app
-EMAIL_DESTINATARIO = os.environ.get("EMAIL_DEST") # Para quem vai
+EMAIL_REMETENTE = os.environ.get("EMAIL_USER")
+SENHA_APP = os.environ.get("EMAIL_PASS")
+EMAIL_DESTINATARIO = os.environ.get("EMAIL_DEST")
 
 URL_BI = "https://app.powerbi.com/view?r=eyJrIjoiMjkwYzNjMmMtNzA2My00M2UxLWFhMTMtZDYyNjJlZDY4MDgzIiwidCI6Ijg5MzJiNTAxLTRkMTQtNGIyOC04ZGUxLTg4YjgzYThiN2MwZCJ9&pageName=a45d0354e465654433c3"
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1TdH5znfmbwwYUnDp5lVWVqnJZPzI6afW7aQvGjKEZZE"
@@ -109,7 +108,9 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
     except: pass
 
 def ajustar_data_calendario(driver, data_alvo):
+    # CORREÇÃO DA DATA NO PRINT (dd/mm/aaaa)
     print(f"--- Ajustando Calendário para: {data_alvo.strftime('%d/%m/%Y')} ---")
+    
     xpath_visual = "//*[contains(@class,'visualContainer')][.//text()='Data - Período' or @title='Data - Período']"
     visual = encontrar_elemento_em_frames(driver, By.XPATH, xpath_visual)
     if not visual: return
@@ -144,6 +145,7 @@ def ajustar_data_calendario(driver, data_alvo):
             val_target = target_ano * 100 + target_mes
             
             if val_atual == val_target:
+                print("Mês correto!")
                 break
             elif val_atual < val_target:
                 btn = cal_container.find_element(By.XPATH, ".//button[contains(@class, 'next') or contains(@aria-label, 'Próximo')]")
@@ -157,6 +159,7 @@ def ajustar_data_calendario(driver, data_alvo):
         try:
             dias = cal_container.find_elements(By.XPATH, xpath_dia)
             dia_alvo_elem = next((d for d in dias if d.is_displayed()), None)
+            
             if dia_alvo_elem:
                 ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
                 time.sleep(2)
@@ -165,6 +168,7 @@ def ajustar_data_calendario(driver, data_alvo):
                 print("SUCESSO: Dia 1 selecionado.")
                 time.sleep(3)
         except: pass
+
     except Exception as e: print(f"Erro data: {e}")
 
 def ajustar_meta_loja(driver, valor):
@@ -183,37 +187,36 @@ def ajustar_meta_loja(driver, valor):
             time.sleep(0.5)
             campo.send_keys(Keys.ENTER)
             time.sleep(1.0)
+        print("Meta OK.")
     except: pass
 
 def extrair_tabela(driver, tabela_element):
     celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
     lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
+    
     html = """<table style="border-collapse: collapse; width: 600px; font-family: Arial; border: 1px solid #ddd;">
     <tr style="background-color: #0f4c3a; color: white;"><th style="padding: 10px;">Vendedor</th><th style="padding: 10px;">Comissão</th><th style="padding: 10px;">Prêmiação</th></tr>"""
+    
     blacklist = ["Meta", "Bonus", "TKM", "PMA", "Tot.", "Vendedor", "Comissão", "Premiação", "Prêmiação", "IPA", "Gorjeta"]
+    
     i = 0
     while i < len(lista):
         item = lista[i]
         if item == "Total":
-            val1 = "-"; val2 = "-"
             vals = [x for x in lista[i+1:i+6] if "R$" in x or (any(c.isdigit() for c in x) and "," in x)]
-            if len(vals) >= 1: val1 = vals[0]
-            if len(vals) >= 2: val2 = vals[1]
+            val1, val2 = (vals[0] if len(vals)>=1 else "-", vals[1] if len(vals)>=2 else "-")
             html += f"<tr style='background-color: #e6f2ef; font-weight: bold;'><td style='padding:8px;'>Total</td><td style='padding:8px;'>{val1}</td><td style='padding:8px;'>{val2}</td></tr>"
             break
         if item.startswith("R$") or (len(item)>0 and item[0].isdigit()) or any(b in item for b in blacklist):
             i+=1; continue
-        col1 = "-"; col2 = "-"
         vals = []
         for x in lista[i+1:i+12]:
             if "R$" in x or (any(c.isdigit() for c in x) and "," in x and len(x)<20): vals.append(x)
             if len(vals)==2: break
-        if len(vals)>=1: col1 = vals[0]
-        if len(vals)>=2: col2 = vals[1]
-        html += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding:8px;'>{item}</td><td style='padding:8px;'>{col1}</td><td style='padding:8px;'>{col2}</td></tr>"
+        val1, val2 = (vals[0] if len(vals)>=1 else "-", vals[1] if len(vals)>=2 else "-")
+        html += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding:8px;'>{item}</td><td style='padding:8px;'>{val1}</td><td style='padding:8px;'>{val2}</td></tr>"
         i+=1
-    html += "</table>"
-    return html
+    return html + "</table>"
 
 def enviar_email(anexo, mes, ano, corpo, meta_valor):
     if not EMAIL_REMETENTE or not SENHA_APP:
@@ -224,8 +227,20 @@ def enviar_email(anexo, mes, ano, corpo, meta_valor):
     msg['Subject'] = f"Resumo de Comissões - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
+    
     texto_meta = f"R$ {meta_valor}" if meta_valor else "Não informada"
-    html = f"""<html><body><h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2><p>Ref: <b>{mes}/{ano}</b></p><p><b>Meta da Loja:</b> {texto_meta}</p><br>{corpo}<br><p style="font-family: Arial; font-size: 12px; color: gray;"><i>O print original segue em anexo.</i></p></body></html>"""
+    
+    html = f"""
+    <html>
+      <body>
+        <h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
+        <p>Ref: <b>{mes}/{ano}</b></p>
+        <p><b>Meta da Loja:</b> {texto_meta}</p>
+        <br>{corpo}<br>
+        <p style="font-family: Arial; font-size: 12px; color: gray;"><i>O print original segue em anexo.</i></p>
+      </body>
+    </html>
+    """
     msg.attach(MIMEText(html, 'html'))
     with open(anexo, 'rb') as f:
         img = MIMEImage(f.read())
@@ -241,17 +256,20 @@ def enviar_email(anexo, mes, ano, corpo, meta_valor):
 def executar_robo():
     valor_meta = ler_meta_planilha_h59()
     ano_dd, mes_dd, data_alvo = get_datas_filtro()
+    
+    # CORREÇÃO DA DATA NO PRINT INICIAL (dd/mm/aaaa)
     print(f"Iniciando: {mes_dd}/{ano_dd}. Alvo Slicer: {data_alvo.strftime('%d/%m/%Y')}. Meta: {valor_meta}")
 
-    # --- CONFIGURAÇÃO PARA RODAR NO GITHUB (HEADLESS) ---
     opts = webdriver.ChromeOptions()
-    opts.add_argument("--headless") # Sem interface gráfica
+    opts.add_argument("--headless")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
-    opts.add_argument("--start-maximized")
     
-    # WebDriver Manager cuida do binário automaticamente no Linux/Windows
+    # --- IMPORTANTE: FORÇAR NAVEGADOR EM PORTUGUÊS PARA O GITHUB ---
+    # Sem isso, o calendário abrirá em inglês ("February") e a busca por "Fevereiro" falhará.
+    opts.add_argument("--lang=pt-BR") 
+    
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
     
     dados_html = "<p>Erro.</p>"
@@ -290,5 +308,4 @@ if __name__ == "__main__":
     try:
         a, m, y, h, meta = executar_robo()
         enviar_email(a, m, y, h, meta)
-
     except Exception as e: print(f"Erro: {e}")
