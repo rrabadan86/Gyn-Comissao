@@ -87,6 +87,7 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, seta)
         except: forcar_clique(driver, container)
         time.sleep(3)
+        
         xpath_val = f"//span[@title='{valor_desejado}'] | //span[text()='{valor_desejado}']"
         try:
             item = driver.find_element(By.XPATH, xpath_val)
@@ -95,9 +96,12 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, item)
             print("Selecionado.")
         except: print("Valor não encontrado na lista.")
-        driver.switch_to.default_content()
-        driver.find_element(By.TAG_NAME, "body").click()
+        
+        # --- CORREÇÃO V51: USAR ESCAPE EM VEZ DE CLICAR NO BODY ---
+        # Clicar no body reseta os filtros. ESC fecha o menu.
+        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
         time.sleep(2)
+        
     except: pass
 
 def ajustar_data_calendario(driver, data_alvo):
@@ -110,28 +114,34 @@ def ajustar_data_calendario(driver, data_alvo):
         input_fim = [i for i in inputs if i.is_displayed()][1]
         driver.execute_script("arguments[0].click();", input_fim)
         time.sleep(3.0)
+        
         xpath_cal = "//div[contains(@class, 'calendar') and contains(@class, 'themeableElement')]"
         cal_container = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath_cal)))
         target_mes, target_ano = data_alvo.month, data_alvo.year
+        
         for _ in range(12):
             texto = cal_container.text.lower()
             mes_cal = next((num for nome, num in MESES_REV.items() if nome in texto), None)
             ano_match = re.search(r'\d{4}', texto)
             ano_cal = int(ano_match.group(0)) if ano_match else None
+            
             if not mes_cal or not ano_cal: break
             val_atual, val_target = ano_cal * 100 + mes_cal, target_ano * 100 + target_mes
+            
             if val_atual == val_target: break
+            
             btn_xpath = ".//button[contains(@aria-label, 'Próximo')]" if val_atual < val_target else ".//button[contains(@aria-label, 'Anterior')]"
             ActionChains(driver).move_to_element(cal_container.find_element(By.XPATH, btn_xpath)).click().perform()
             time.sleep(1.0)
+            
         xpath_dia = ".//*[contains(@class, 'date-cell') and normalize-space(text())='1']"
         dias = cal_container.find_elements(By.XPATH, xpath_dia)
         dia_alvo_elem = next((d for d in dias if d.is_displayed()), None)
+        
         if dia_alvo_elem:
             ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
             time.sleep(2)
-            # --- REMOVIDO O CLIQUE NO BODY AQUI ---
-            # O calendário fecha sozinho. Clicar no body resetava a seleção.
+            # SEM CLIQUE NO BODY AQUI. O clique no dia já fecha o popup.
             print("SUCESSO: Dia 1 selecionado.")
             time.sleep(3)
     except: pass
@@ -145,8 +155,13 @@ def ajustar_meta_loja(driver, valor):
     try:
         inputs = visual.find_elements(By.TAG_NAME, "input")
         for campo in [i for i in inputs if i.is_displayed()]:
+            # Clica, Limpa, Digita e CONFIRMA COM TAB (Mais seguro que Enter ou Click fora)
             ActionChains(driver).click(campo).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).send_keys(Keys.DELETE).perform()
-            time.sleep(0.5); campo.send_keys(valor); time.sleep(0.5); campo.send_keys(Keys.ENTER); time.sleep(1.0)
+            time.sleep(0.5)
+            campo.send_keys(valor)
+            time.sleep(0.5)
+            campo.send_keys(Keys.TAB) # TAB confirma o valor e sai do campo
+            time.sleep(1.0)
     except: pass
 
 def extrair_tabela(driver, tabela_element):
