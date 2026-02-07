@@ -34,7 +34,7 @@ def forcar_clique(driver, elemento):
     driver.execute_script("arguments[0].click();", elemento)
 
 def ler_meta_planilha_h59():
-    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: LINHA 40) ---")
+    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: LINHA 55) ---")
     try:
         url_csv = f"{URL_PLANILHA}/gviz/tq?tqx=out:csv&sheet=LOJA"
         df = pd.read_csv(url_csv, header=None, dtype=str, skip_blank_lines=False, on_bad_lines='skip', engine='python')
@@ -239,4 +239,5 @@ if __name__ == "__main__":
         a, m, y, h, meta = executar_robo()
         enviar_email(a, m, y, h, meta)
     except Exception as e: print(f"Erro: {e}")
+
 
