@@ -58,12 +58,8 @@ def get_datas_filtro():
     hoje = datetime.date.today()
     data_alvo_slicer = hoje.replace(day=1)
     mes_anterior = data_alvo_slicer - datetime.timedelta(days=1)
-    
-    meses_map = {
-        1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
-        5: "maio", 6: "junho", 7: "julho", 8: "agosto",
-        9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"
-    }
+    meses_map = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho", 
+                 7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"}
     return str(mes_anterior.year), meses_map[mes_anterior.month], data_alvo_slicer
 
 def encontrar_elemento_em_frames(driver, by, locator):
@@ -84,7 +80,6 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
     xpath_slicer = f"//*[@aria-label='{nome_filtro}'] | //*[@title='{nome_filtro}'] | //div[contains(@class, 'header') and .//text()='{nome_filtro}']"
     slicer = encontrar_elemento_em_frames(driver, By.XPATH, xpath_slicer)
     if not slicer: return
-
     try:
         container = slicer.find_element(By.XPATH, "./ancestor::div[contains(@class, 'visualContainer')][1]")
         try:
@@ -92,7 +87,6 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, seta)
         except: forcar_clique(driver, container)
         time.sleep(3)
-
         xpath_val = f"//span[@title='{valor_desejado}'] | //span[text()='{valor_desejado}']"
         try:
             item = driver.find_element(By.XPATH, xpath_val)
@@ -101,75 +95,46 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, item)
             print("Selecionado.")
         except: print("Valor não encontrado na lista.")
-        
         driver.switch_to.default_content()
         driver.find_element(By.TAG_NAME, "body").click()
         time.sleep(2)
     except: pass
 
 def ajustar_data_calendario(driver, data_alvo):
-    # CORREÇÃO DA DATA NO PRINT (dd/mm/aaaa)
     print(f"--- Ajustando Calendário para: {data_alvo.strftime('%d/%m/%Y')} ---")
-    
     xpath_visual = "//*[contains(@class,'visualContainer')][.//text()='Data - Período' or @title='Data - Período']"
     visual = encontrar_elemento_em_frames(driver, By.XPATH, xpath_visual)
     if not visual: return
-
     try:
         inputs = visual.find_elements(By.TAG_NAME, "input")
-        inputs_visiveis = [i for i in inputs if i.is_displayed()]
-        input_fim = inputs_visiveis[1] if len(inputs_visiveis) >= 2 else inputs[-1]
-        
+        input_fim = [i for i in inputs if i.is_displayed()][1]
         driver.execute_script("arguments[0].click();", input_fim)
         time.sleep(3.0)
-        
         xpath_cal = "//div[contains(@class, 'calendar') and contains(@class, 'themeableElement')]"
-        try:
-            cal_container = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath_cal)))
-        except:
-            print("Calendário não abriu.")
-            return
-
-        target_mes = data_alvo.month
-        target_ano = data_alvo.year
-        
+        cal_container = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath_cal)))
+        target_mes, target_ano = data_alvo.month, data_alvo.year
         for _ in range(12):
             texto = cal_container.text.lower()
-            mes_atual = next((num for nome, num in MESES_REV.items() if nome in texto), None)
+            mes_cal = next((num for nome, num in MESES_REV.items() if nome in texto), None)
             ano_match = re.search(r'\d{4}', texto)
-            ano_atual = int(ano_match.group(0)) if ano_match else None
-            
-            if not mes_atual or not ano_atual: break
-            
-            val_atual = ano_atual * 100 + mes_atual
-            val_target = target_ano * 100 + target_mes
-            
-            if val_atual == val_target:
-                print("Mês correto!")
-                break
-            elif val_atual < val_target:
-                btn = cal_container.find_element(By.XPATH, ".//button[contains(@class, 'next') or contains(@aria-label, 'Próximo')]")
-                ActionChains(driver).move_to_element(btn).click().perform()
-            else:
-                btn = cal_container.find_element(By.XPATH, ".//button[contains(@class, 'prev') or contains(@aria-label, 'Anterior')]")
-                ActionChains(driver).move_to_element(btn).click().perform()
+            ano_cal = int(ano_match.group(0)) if ano_match else None
+            if not mes_cal or not ano_cal: break
+            val_atual, val_target = ano_cal * 100 + mes_cal, target_ano * 100 + target_mes
+            if val_atual == val_target: break
+            btn_xpath = ".//button[contains(@aria-label, 'Próximo')]" if val_atual < val_target else ".//button[contains(@aria-label, 'Anterior')]"
+            ActionChains(driver).move_to_element(cal_container.find_element(By.XPATH, btn_xpath)).click().perform()
             time.sleep(1.0)
-
         xpath_dia = ".//*[contains(@class, 'date-cell') and normalize-space(text())='1']"
-        try:
-            dias = cal_container.find_elements(By.XPATH, xpath_dia)
-            dia_alvo_elem = next((d for d in dias if d.is_displayed()), None)
-            
-            if dia_alvo_elem:
-                ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
-                time.sleep(2)
-                try: driver.find_element(By.TAG_NAME, "body").click()
-                except: pass
-                print("SUCESSO: Dia 1 selecionado.")
-                time.sleep(3)
-        except: pass
-
-    except Exception as e: print(f"Erro data: {e}")
+        dias = cal_container.find_elements(By.XPATH, xpath_dia)
+        dia_alvo_elem = next((d for d in dias if d.is_displayed()), None)
+        if dia_alvo_elem:
+            ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
+            time.sleep(2)
+            # --- REMOVIDO O CLIQUE NO BODY AQUI ---
+            # O calendário fecha sozinho. Clicar no body resetava a seleção.
+            print("SUCESSO: Dia 1 selecionado.")
+            time.sleep(3)
+    except: pass
 
 def ajustar_meta_loja(driver, valor):
     if not valor: return
@@ -179,26 +144,17 @@ def ajustar_meta_loja(driver, valor):
     if not visual: return
     try:
         inputs = visual.find_elements(By.TAG_NAME, "input")
-        visiveis = [i for i in inputs if i.is_displayed()]
-        for campo in visiveis:
+        for campo in [i for i in inputs if i.is_displayed()]:
             ActionChains(driver).click(campo).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).send_keys(Keys.DELETE).perform()
-            time.sleep(0.5)
-            campo.send_keys(valor)
-            time.sleep(0.5)
-            campo.send_keys(Keys.ENTER)
-            time.sleep(1.0)
-        print("Meta OK.")
+            time.sleep(0.5); campo.send_keys(valor); time.sleep(0.5); campo.send_keys(Keys.ENTER); time.sleep(1.0)
     except: pass
 
 def extrair_tabela(driver, tabela_element):
     celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
     lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
-    
     html = """<table style="border-collapse: collapse; width: 600px; font-family: Arial; border: 1px solid #ddd;">
     <tr style="background-color: #0f4c3a; color: white;"><th style="padding: 10px;">Vendedor</th><th style="padding: 10px;">Comissão</th><th style="padding: 10px;">Prêmiação</th></tr>"""
-    
     blacklist = ["Meta", "Bonus", "TKM", "PMA", "Tot.", "Vendedor", "Comissão", "Premiação", "Prêmiação", "IPA", "Gorjeta"]
-    
     i = 0
     while i < len(lista):
         item = lista[i]
@@ -219,88 +175,48 @@ def extrair_tabela(driver, tabela_element):
     return html + "</table>"
 
 def enviar_email(anexo, mes, ano, corpo, meta_valor):
-    if not EMAIL_REMETENTE or not SENHA_APP:
-        print("Erro: Credenciais de email não configuradas no ambiente.")
-        return
-        
+    if not EMAIL_REMETENTE or not SENHA_APP: return
     msg = MIMEMultipart('related')
     msg['Subject'] = f"Resumo de Comissões - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
-    
-    texto_meta = f"R$ {meta_valor}" if meta_valor else "Não informada"
-    
-    html = f"""
-    <html>
-      <body>
-        <h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
-        <p>Ref: <b>{mes}/{ano}</b></p>
-        <p><b>Meta da Loja:</b> {texto_meta}</p>
-        <br>{corpo}<br>
-        <p style="font-family: Arial; font-size: 12px; color: gray;"><i>O print original segue em anexo.</i></p>
-      </body>
-    </html>
-    """
+    texto_meta = f"R$ {meta_valor}" if meta_valor else "Não capturada"
+    html = f"""<html><body><h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
+    <p>Ref: <b>{mes}/{ano}</b></p>
+    <p><b>Meta da Loja: {texto_meta}</b></p><br>{corpo}<br></body></html>"""
     msg.attach(MIMEText(html, 'html'))
     with open(anexo, 'rb') as f:
         img = MIMEImage(f.read())
         img.add_header('Content-Disposition', 'attachment', filename=anexo)
         msg.attach(img)
     server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(EMAIL_REMETENTE, SENHA_APP)
-    server.send_message(msg)
-    server.quit()
+    server.starttls(); server.login(EMAIL_REMETENTE, SENHA_APP); server.send_message(msg); server.quit()
     print("E-mail enviado!")
 
 def executar_robo():
     valor_meta = ler_meta_planilha_h59()
     ano_dd, mes_dd, data_alvo = get_datas_filtro()
-    
-    # CORREÇÃO DA DATA NO PRINT INICIAL (dd/mm/aaaa)
     print(f"Iniciando: {mes_dd}/{ano_dd}. Alvo Slicer: {data_alvo.strftime('%d/%m/%Y')}. Meta: {valor_meta}")
 
     opts = webdriver.ChromeOptions()
-    opts.add_argument("--headless")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--headless"); opts.add_argument("--no-sandbox"); opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
-    
-    # --- IMPORTANTE: FORÇAR NAVEGADOR EM PORTUGUÊS PARA O GITHUB ---
-    # Sem isso, o calendário abrirá em inglês ("February") e a busca por "Fevereiro" falhará.
-    opts.add_argument("--lang=pt-BR") 
+    opts.add_argument("--lang=pt-BR")
     
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
-    
-    dados_html = "<p>Erro.</p>"
     arq = f"relatorio_{mes_dd}_{ano_dd}.png"
-    
     try:
-        driver.get(URL_BI)
-        time.sleep(30)
-        
-        driver.switch_to.default_content()
-        aplicar_filtro_sherlock(driver, "Ano", ano_dd)
-        driver.switch_to.default_content()
-        aplicar_filtro_sherlock(driver, "Mês", mes_dd)
-        
-        driver.switch_to.default_content()
+        driver.get(URL_BI); time.sleep(30); driver.switch_to.default_content()
+        aplicar_filtro_sherlock(driver, "Ano", ano_dd); driver.switch_to.default_content()
+        aplicar_filtro_sherlock(driver, "Mês", mes_dd); driver.switch_to.default_content()
         ajustar_data_calendario(driver, data_alvo)
-        
-        if valor_meta:
-            driver.switch_to.default_content()
-            ajustar_meta_loja(driver, valor_meta)
-        
-        time.sleep(5)
-        driver.switch_to.default_content()
+        if valor_meta: driver.switch_to.default_content(); ajustar_meta_loja(driver, valor_meta)
+        time.sleep(5); driver.switch_to.default_content()
         xp_tab = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'Premiação')]]"
         tab = encontrar_elemento_em_frames(driver, By.XPATH, xp_tab)
-        
-        if tab:
-            dados_html = extrair_tabela(driver, tab)
-            tab.screenshot(arq)
+        dados_html = extrair_tabela(driver, tab) if tab else "<p>Erro extração</p>"
+        if tab: tab.screenshot(arq)
         else: driver.save_screenshot(arq)
-
         return arq, mes_dd, ano_dd, dados_html, valor_meta
     finally: driver.quit()
 
