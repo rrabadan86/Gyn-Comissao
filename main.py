@@ -39,7 +39,7 @@ def ler_meta_planilha_h59():
         url_csv = f"{URL_PLANILHA}/gviz/tq?tqx=out:csv&sheet=LOJA"
         df = pd.read_csv(url_csv, header=None, dtype=str, skip_blank_lines=False, on_bad_lines='skip', engine='python')
         
-        linha_alvo = 39 
+        linha_alvo = 55 
         coluna_alvo = 7
         
         if len(df) > linha_alvo:
@@ -239,3 +239,4 @@ if __name__ == "__main__":
         a, m, y, h, meta = executar_robo()
         enviar_email(a, m, y, h, meta)
     except Exception as e: print(f"Erro: {e}")
+
