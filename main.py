@@ -241,7 +241,7 @@ def enviar_email(anexo, mes, ano, corpo, meta_valor):
 def executar_robo():
     valor_meta = ler_meta_planilha_h59()
     ano_dd, mes_dd, data_alvo = get_datas_filtro()
-    print(f"Iniciando: {mes_dd}/{ano_dd}. Alvo Slicer: {data_alvo}. Meta: {valor_meta}")
+    print(f"Iniciando: {mes_dd}/{ano_dd}. Alvo Slicer: {data_alvo.strftime('%d/%m/%Y')}. Meta: {valor_meta}")
 
     # --- CONFIGURAÇÃO PARA RODAR NO GITHUB (HEADLESS) ---
     opts = webdriver.ChromeOptions()
@@ -290,4 +290,5 @@ if __name__ == "__main__":
     try:
         a, m, y, h, meta = executar_robo()
         enviar_email(a, m, y, h, meta)
+
     except Exception as e: print(f"Erro: {e}")
