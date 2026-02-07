@@ -97,8 +97,7 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             print("Selecionado.")
         except: print("Valor não encontrado na lista.")
         
-        # --- CORREÇÃO V51: USAR ESCAPE EM VEZ DE CLICAR NO BODY ---
-        # Clicar no body reseta os filtros. ESC fecha o menu.
+        # --- CORREÇÃO V52: USA ESC PARA FECHAR MENU (NÃO CLICA NO BODY) ---
         ActionChains(driver).send_keys(Keys.ESCAPE).perform()
         time.sleep(2)
         
@@ -141,7 +140,7 @@ def ajustar_data_calendario(driver, data_alvo):
         if dia_alvo_elem:
             ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
             time.sleep(2)
-            # SEM CLIQUE NO BODY AQUI. O clique no dia já fecha o popup.
+            # NENHUM CLIQUE ADICIONAL AQUI
             print("SUCESSO: Dia 1 selecionado.")
             time.sleep(3)
     except: pass
@@ -155,12 +154,12 @@ def ajustar_meta_loja(driver, valor):
     try:
         inputs = visual.find_elements(By.TAG_NAME, "input")
         for campo in [i for i in inputs if i.is_displayed()]:
-            # Clica, Limpa, Digita e CONFIRMA COM TAB (Mais seguro que Enter ou Click fora)
             ActionChains(driver).click(campo).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).send_keys(Keys.DELETE).perform()
             time.sleep(0.5)
             campo.send_keys(valor)
             time.sleep(0.5)
-            campo.send_keys(Keys.TAB) # TAB confirma o valor e sai do campo
+            # CORREÇÃO V52: USA TAB PARA SAIR DO CAMPO (NÃO CLICA FORA)
+            campo.send_keys(Keys.TAB)
             time.sleep(1.0)
     except: pass
 
