@@ -87,7 +87,6 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, seta)
         except: forcar_clique(driver, container)
         time.sleep(3)
-        
         xpath_val = f"//span[@title='{valor_desejado}'] | //span[text()='{valor_desejado}']"
         try:
             item = driver.find_element(By.XPATH, xpath_val)
@@ -96,11 +95,8 @@ def aplicar_filtro_sherlock(driver, nome_filtro, valor_desejado):
             forcar_clique(driver, item)
             print("Selecionado.")
         except: print("Valor não encontrado na lista.")
-        
-        # --- CORREÇÃO V52: USA ESC PARA FECHAR MENU (NÃO CLICA NO BODY) ---
         ActionChains(driver).send_keys(Keys.ESCAPE).perform()
         time.sleep(2)
-        
     except: pass
 
 def ajustar_data_calendario(driver, data_alvo):
@@ -113,34 +109,26 @@ def ajustar_data_calendario(driver, data_alvo):
         input_fim = [i for i in inputs if i.is_displayed()][1]
         driver.execute_script("arguments[0].click();", input_fim)
         time.sleep(3.0)
-        
         xpath_cal = "//div[contains(@class, 'calendar') and contains(@class, 'themeableElement')]"
         cal_container = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, xpath_cal)))
         target_mes, target_ano = data_alvo.month, data_alvo.year
-        
         for _ in range(12):
             texto = cal_container.text.lower()
             mes_cal = next((num for nome, num in MESES_REV.items() if nome in texto), None)
             ano_match = re.search(r'\d{4}', texto)
             ano_cal = int(ano_match.group(0)) if ano_match else None
-            
             if not mes_cal or not ano_cal: break
             val_atual, val_target = ano_cal * 100 + mes_cal, target_ano * 100 + target_mes
-            
             if val_atual == val_target: break
-            
             btn_xpath = ".//button[contains(@aria-label, 'Próximo')]" if val_atual < val_target else ".//button[contains(@aria-label, 'Anterior')]"
             ActionChains(driver).move_to_element(cal_container.find_element(By.XPATH, btn_xpath)).click().perform()
             time.sleep(1.0)
-            
         xpath_dia = ".//*[contains(@class, 'date-cell') and normalize-space(text())='1']"
         dias = cal_container.find_elements(By.XPATH, xpath_dia)
         dia_alvo_elem = next((d for d in dias if d.is_displayed()), None)
-        
         if dia_alvo_elem:
             ActionChains(driver).move_to_element(dia_alvo_elem).click().perform()
             time.sleep(2)
-            # NENHUM CLIQUE ADICIONAL AQUI
             print("SUCESSO: Dia 1 selecionado.")
             time.sleep(3)
     except: pass
@@ -158,17 +146,17 @@ def ajustar_meta_loja(driver, valor):
             time.sleep(0.5)
             campo.send_keys(valor)
             time.sleep(0.5)
-            # CORREÇÃO V52: USA TAB PARA SAIR DO CAMPO (NÃO CLICA FORA)
             campo.send_keys(Keys.TAB)
             time.sleep(1.0)
     except: pass
 
 def extrair_tabela(driver, tabela_element):
+    # Extrai tabela de Comissões (Completa)
     celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
     lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
     html = """<table style="border-collapse: collapse; width: 600px; font-family: Arial; border: 1px solid #ddd;">
     <tr style="background-color: #0f4c3a; color: white;"><th style="padding: 10px;">Vendedor</th><th style="padding: 10px;">Comissão</th><th style="padding: 10px;">Prêmiação</th></tr>"""
-    blacklist = ["Meta", "Bonus", "TKM", "PMA", "Tot.", "SEM VENDEDOR", "Vendedor", "Comissão", "Premiação", "Prêmiação", "IPA", "Gorjeta"]
+    blacklist = ["Meta", "Bonus", "TKM", "PMA", "Tot.", "Vendedor", "Comissão", "Premiação", "Prêmiação", "IPA", "Gorjeta"]
     i = 0
     while i < len(lista):
         item = lista[i]
@@ -188,23 +176,75 @@ def extrair_tabela(driver, tabela_element):
         i+=1
     return html + "</table>"
 
-def enviar_email(anexo, mes, ano, corpo, meta_valor):
+def extrair_tabela_gorjeta(driver, tabela_element):
+    # Nova Função: Extrai tabela de Gorjetas (Apenas Vendedor e Gorjeta)
+    celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
+    lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
+    
+    html = """<table style="border-collapse: collapse; width: 400px; font-family: Arial; border: 1px solid #ddd;">
+    <tr style="background-color: #0f4c3a; color: white;"><th style="padding: 10px;">Vendedor</th><th style="padding: 10px;">Gorjeta</th></tr>"""
+    
+    # Blacklist para limpar o lixo da tabela de gorjeta
+    blacklist = ["Vendedor", "Gorjeta", "R$ Total", "TKM", "PMA", "IPA"]
+    
+    i = 0
+    while i < len(lista):
+        item = lista[i]
+        
+        if item == "Total":
+            # O próximo item geralmente é o total da gorjeta (1ª coluna de valor)
+            val = lista[i+1] if i+1 < len(lista) else "-"
+            html += f"<tr style='background-color: #e6f2ef; font-weight: bold;'><td style='padding:8px;'>Total</td><td style='padding:8px;'>{val}</td></tr>"
+            break
+            
+        # Pula se for dinheiro, número ou cabeçalho indesejado
+        if item.startswith("R$") or (len(item)>0 and item[0].isdigit()) or any(b in item for b in blacklist):
+            i+=1
+            continue
+            
+        vendedor = item
+        gorjeta = "-"
+        
+        # Pega o próximo item que pareça dinheiro (Gorjeta é a 1ª coluna após o nome)
+        if i+1 < len(lista):
+            gorjeta = lista[i+1]
+            
+        html += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding:8px;'>{vendedor}</td><td style='padding:8px;'>{gorjeta}</td></tr>"
+        i+=1 
+        
+    return html + "</table>"
+
+def enviar_email(anexo, mes, ano, html_comissao, html_gorjeta, meta_valor):
     if not EMAIL_REMETENTE or not SENHA_APP: return
     msg = MIMEMultipart('related')
-    msg['Subject'] = f"[TS Flamboyant] Comissionamento e Gorjeta - {mes}/{ano}"
+    msg['Subject'] = f"Resumo de Comissões e Gorjetas - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
     texto_meta = f"R$ {meta_valor}" if meta_valor else "Não capturada"
-    html = f"""<html><body><h2 style='color:#0f4c3a;'>Relatório de Comissionamento e Gorjeta</h2>
+    
+    html = f"""<html><body>
+    <h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
     <p>Ref: <b>{mes}/{ano}</b></p>
-    <p><b>Meta da Loja: {texto_meta}</b></p><br>{corpo}<br></body></html>"""
+    <p><b>Meta da Loja: {texto_meta}</b></p>
+    <br>
+    {html_comissao}
+    <br>
+    <h3 style='color:#0f4c3a;'>Relatório de Gorjetas</h3>
+    {html_gorjeta}
+    <br>
+    <p style="font-family: Arial; font-size: 12px; color: gray;"><i>O print original segue em anexo.</i></p>
+    </body></html>"""
+    
     msg.attach(MIMEText(html, 'html'))
     with open(anexo, 'rb') as f:
         img = MIMEImage(f.read())
         img.add_header('Content-Disposition', 'attachment', filename=anexo)
         msg.attach(img)
     server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls(); server.login(EMAIL_REMETENTE, SENHA_APP); server.send_message(msg); server.quit()
+    server.starttls()
+    server.login(EMAIL_REMETENTE, SENHA_APP)
+    server.send_message(msg)
+    server.quit()
     print("E-mail enviado!")
 
 def executar_robo():
@@ -225,23 +265,29 @@ def executar_robo():
         aplicar_filtro_sherlock(driver, "Mês", mes_dd); driver.switch_to.default_content()
         ajustar_data_calendario(driver, data_alvo)
         if valor_meta: driver.switch_to.default_content(); ajustar_meta_loja(driver, valor_meta)
+        
         time.sleep(5); driver.switch_to.default_content()
-        xp_tab = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'Premiação')]]"
-        tab = encontrar_elemento_em_frames(driver, By.XPATH, xp_tab)
-        dados_html = extrair_tabela(driver, tab) if tab else "<p>Erro extração</p>"
-        if tab: tab.screenshot(arq)
+        
+        # 1. Tabela Comissão
+        xp_comissao = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'Premiação')]]"
+        tab_comissao = encontrar_elemento_em_frames(driver, By.XPATH, xp_comissao)
+        html_comissao = extrair_tabela(driver, tab_comissao) if tab_comissao else "<p>Erro tab. comissão</p>"
+        
+        driver.switch_to.default_content()
+        
+        # 2. Tabela Gorjeta (Procura por 'R$ Total' para diferenciar)
+        xp_gorjeta = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'R$ Total')]]"
+        tab_gorjeta = encontrar_elemento_em_frames(driver, By.XPATH, xp_gorjeta)
+        html_gorjeta = extrair_tabela_gorjeta(driver, tab_gorjeta) if tab_gorjeta else "<p>Erro tab. gorjeta</p>"
+        
+        if tab_comissao: tab_comissao.screenshot(arq)
         else: driver.save_screenshot(arq)
-        return arq, mes_dd, ano_dd, dados_html, valor_meta
+        
+        return arq, mes_dd, ano_dd, html_comissao, html_gorjeta, valor_meta
     finally: driver.quit()
 
 if __name__ == "__main__":
     try:
-        a, m, y, h, meta = executar_robo()
-        enviar_email(a, m, y, h, meta)
+        a, m, y, h_comissao, h_gorjeta, meta = executar_robo()
+        enviar_email(a, m, y, h_comissao, h_gorjeta, meta)
     except Exception as e: print(f"Erro: {e}")
-
-
-
-
-
-
