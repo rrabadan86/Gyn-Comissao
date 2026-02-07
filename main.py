@@ -191,11 +191,11 @@ def extrair_tabela(driver, tabela_element):
 def enviar_email(anexo, mes, ano, corpo, meta_valor):
     if not EMAIL_REMETENTE or not SENHA_APP: return
     msg = MIMEMultipart('related')
-    msg['Subject'] = f"Resumo de Comissões - {mes}/{ano}"
+    msg['Subject'] = f"[TS Flamboyant] Comissionamento e Gorjeta - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
     texto_meta = f"R$ {meta_valor}" if meta_valor else "Não capturada"
-    html = f"""<html><body><h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
+    html = f"""<html><body><h2 style='color:#0f4c3a;'>Relatório de Comissionamento e Gorjeta</h2>
     <p>Ref: <b>{mes}/{ano}</b></p>
     <p><b>Meta da Loja: {texto_meta}</b></p><br>{corpo}<br></body></html>"""
     msg.attach(MIMEText(html, 'html'))
@@ -239,6 +239,7 @@ if __name__ == "__main__":
         a, m, y, h, meta = executar_robo()
         enviar_email(a, m, y, h, meta)
     except Exception as e: print(f"Erro: {e}")
+
 
 
 
