@@ -151,7 +151,6 @@ def ajustar_meta_loja(driver, valor):
     except: pass
 
 def extrair_tabela(driver, tabela_element):
-    # Extrai tabela de Comissões (Completa)
     celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
     lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
     html = """<table style="border-collapse: collapse; width: 600px; font-family: Arial; border: 1px solid #ddd;">
@@ -177,37 +176,38 @@ def extrair_tabela(driver, tabela_element):
     return html + "</table>"
 
 def extrair_tabela_gorjeta(driver, tabela_element):
-    # Nova Função: Extrai tabela de Gorjetas (Apenas Vendedor e Gorjeta)
+    if not tabela_element: return ""
     celulas = tabela_element.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
     lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
     
     html = """<table style="border-collapse: collapse; width: 400px; font-family: Arial; border: 1px solid #ddd;">
     <tr style="background-color: #0f4c3a; color: white;"><th style="padding: 10px;">Vendedor</th><th style="padding: 10px;">Gorjeta</th></tr>"""
     
-    # Blacklist para limpar o lixo da tabela de gorjeta
-    blacklist = ["Vendedor", "Gorjeta", "R$ Total", "TKM", "PMA", "IPA"]
+    # BLACKLIST REFORÇADA PARA IGNORAR LIXO DA TABELA GRANDE
+    blacklist = ["Vendedor", "Gorjeta", "R$ Total", "TKM", "PMA", "IPA", "Meta", "Bonus", "Premiação", "Comissão", "Tot.", "Arom.", "Puro", "Acess."]
     
     i = 0
     while i < len(lista):
         item = lista[i]
         
+        # Filtra lixo antes de processar
+        if any(bad in item for bad in blacklist) or (item.startswith("R$") or (len(item)>0 and item[0].isdigit())):
+            i += 1
+            continue
+            
         if item == "Total":
-            # O próximo item geralmente é o total da gorjeta (1ª coluna de valor)
             val = lista[i+1] if i+1 < len(lista) else "-"
             html += f"<tr style='background-color: #e6f2ef; font-weight: bold;'><td style='padding:8px;'>Total</td><td style='padding:8px;'>{val}</td></tr>"
             break
             
-        # Pula se for dinheiro, número ou cabeçalho indesejado
-        if item.startswith("R$") or (len(item)>0 and item[0].isdigit()) or any(b in item for b in blacklist):
-            i+=1
-            continue
-            
         vendedor = item
         gorjeta = "-"
         
-        # Pega o próximo item que pareça dinheiro (Gorjeta é a 1ª coluna após o nome)
+        # Pega o próximo item que pareça dinheiro
         if i+1 < len(lista):
-            gorjeta = lista[i+1]
+            prox = lista[i+1]
+            if "R$" in prox or (any(c.isdigit() for c in prox) and "," in prox):
+                gorjeta = prox
             
         html += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding:8px;'>{vendedor}</td><td style='padding:8px;'>{gorjeta}</td></tr>"
         i+=1 
@@ -217,7 +217,7 @@ def extrair_tabela_gorjeta(driver, tabela_element):
 def enviar_email(anexo, mes, ano, html_comissao, html_gorjeta, meta_valor):
     if not EMAIL_REMETENTE or not SENHA_APP: return
     msg = MIMEMultipart('related')
-    msg['Subject'] = f"[TS Flamboyant] Comissões e Gorjetas - {mes}/{ano}"
+    msg['Subject'] = f"Resumo de Comissões e Gorjetas - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
     texto_meta = f"R$ {meta_valor}" if meta_valor else "Não capturada"
@@ -275,9 +275,23 @@ def executar_robo():
         
         driver.switch_to.default_content()
         
-        # 2. Tabela Gorjeta (Procura por 'R$ Total' para diferenciar)
-        xp_gorjeta = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'R$ Total')]]"
-        tab_gorjeta = encontrar_elemento_em_frames(driver, By.XPATH, xp_gorjeta)
+        # 2. Tabela Gorjeta (Tenta achar a MENOR tabela que tem Gorjeta)
+        # O seletor agora é mais genérico para garantir que ache ALGO, mas a função de extração filtra o lixo.
+        xp_gorjeta = "//div[contains(@class,'visualContainer')][descendant::*[contains(text(), 'Gorjeta')]]"
+        # Pode haver várias, vamos tentar pegar a última encontrada que costuma ser a menor/detalhada ou iterar
+        tabelas_possiveis = driver.find_elements(By.XPATH, xp_gorjeta)
+        
+        # Lógica: A tabela grande tem MUITAS colunas. A pequena tem poucas.
+        # Vamos tentar pegar a tabela que NÃO tem 'Premiação' dentro dela
+        tab_gorjeta = None
+        for t in tabelas_possiveis:
+            if "Premiação" not in t.text:
+                tab_gorjeta = t
+                break
+        
+        # Fallback se não filtrar
+        if not tab_gorjeta and tabelas_possiveis: tab_gorjeta = tabelas_possiveis[0]
+            
         html_gorjeta = extrair_tabela_gorjeta(driver, tab_gorjeta) if tab_gorjeta else "<p>Erro tab. gorjeta</p>"
         
         if tab_comissao: tab_comissao.screenshot(arq)
