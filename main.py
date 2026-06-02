@@ -224,22 +224,21 @@ def extrair_tabela_gorjeta(driver, tabela_element):
         i+=1 
     return html + "</table>"
 
-def extrair_fat_eg(driver):
+def extrair_fat_eg(tabela_gorjeta):
+    # O Faturado EG corresponde ao TOTAL da coluna "R$ Total" na tabela de gorjetas.
+    # Na linha 'Total', os valores monetários vêm na ordem:
+    #   1º = Gorjeta | 2º = R$ Total | 3º = TKM ...
+    # Logo, o valor desejado é o 2º valor monetário após a palavra 'Total'.
+    if not tabela_gorjeta: return "Não encontrado"
     try:
-        # Acha o container que tem Fat. EG e Fat. Loja (tabela de royalties)
-        xp = "//div[contains(@class,'visualContainer')][.//*[contains(text(),'Fat. EG')] and .//*[contains(text(),'Fat. Loja')]]"
-        container = driver.find_element(By.XPATH, xp)
-        celulas = container.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
-        lista = [c.text.strip() for c in celulas if c.text.strip()]
-
-        # Descobre a posição de "Fat. EG" entre os cabeçalhos
-        headers = [x for x in lista if not ("R$" in x or (any(d.isdigit() for d in x) and "," in x))]
-        valores = [x for x in lista if "R$" in x or (any(d.isdigit() for d in x) and "," in x and len(x) < 20)]
-
-        if "Fat. EG" in headers:
-            idx = headers.index("Fat. EG")
-            if idx < len(valores):
-                return valores[idx]
+        celulas = tabela_gorjeta.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
+        lista = [c.text.strip() for c in celulas if c.text.strip() != ""]
+        for i, item in enumerate(lista):
+            if item == "Total":
+                vals = [x for x in lista[i+1:i+8] if "R$" in x or (any(d.isdigit() for d in x) and "," in x)]
+                if len(vals) >= 2:
+                    return vals[1]
+                break
     except: pass
     return "Não encontrado"
 
@@ -334,9 +333,8 @@ def executar_robo():
         if not tab_gorjeta and tabelas_possiveis: tab_gorjeta = tabelas_possiveis[0]
         html_gorjeta = extrair_tabela_gorjeta(driver, tab_gorjeta) if tab_gorjeta else "<p>Erro tab. gorjeta</p>"
         
-        # 3. Fat. EG
-        driver.switch_to.default_content()
-        valor_fat_eg = extrair_fat_eg(driver)
+        # 3. Fat. EG (= Total da coluna "R$ Total" na tabela de gorjetas)
+        valor_fat_eg = extrair_fat_eg(tab_gorjeta)
 
         if tab_comissao: tab_comissao.screenshot(arq)
         else: driver.save_screenshot(arq)
