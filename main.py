@@ -169,9 +169,10 @@ def extrair_tabela(driver, tabela_element):
             # Captura valores financeiros à frente da palavra 'Total'
             vals = [x for x in lista[i+1:i+10] if "R$" in x or (any(c.isdigit() for c in x) and "," in x)]
             
-            # De acordo com a imagem, o 'Tot. Vendido' é o 5º valor monetário na linha total
-            if len(vals) >= 5:
-                valor_faturado_total = vals[4]
+            # Tot. Vendido é o 4º valor monetário na linha total
+            # (Comissão, Premiação, Meta Tot. Ind., Tot. Vendido)
+            if len(vals) >= 4:
+                valor_faturado_total = vals[3]
 
             val1, val2 = (vals[0] if len(vals)>=1 else "-", vals[1] if len(vals)>=2 else "-")
             html += f"<tr style='background-color: #e6f2ef; font-weight: bold;'><td style='padding:8px;'>Total</td><td style='padding:8px;'>{val1}</td><td style='padding:8px;'>{val2}</td></tr>"
