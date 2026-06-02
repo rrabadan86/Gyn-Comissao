@@ -244,7 +244,18 @@ def extrair_fat_eg(tabela_gorjeta):
 
 def valor_para_float(texto):
     try:
-        limpo = texto.replace("R$", "").replace(".", "").replace(",", ".").strip()
+        limpo = str(texto).replace("R$", "").replace(" ", "").strip()
+        if "," in limpo and "." in limpo:
+            # Tem os dois separadores: o que aparece por ÚLTIMO é o decimal
+            if limpo.rfind(",") > limpo.rfind("."):
+                # Formato BR: 84.777,69  -> ponto = milhar, vírgula = decimal
+                limpo = limpo.replace(".", "").replace(",", ".")
+            else:
+                # Formato US: 84,777.69  -> vírgula = milhar, ponto = decimal
+                limpo = limpo.replace(",", "")
+        elif "," in limpo:
+            # Só vírgula: assume decimal (BR)
+            limpo = limpo.replace(",", ".")
         return float(limpo)
     except: return 0.0
 
