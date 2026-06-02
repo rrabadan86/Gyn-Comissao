@@ -226,15 +226,20 @@ def extrair_tabela_gorjeta(driver, tabela_element):
 
 def extrair_fat_eg(driver):
     try:
-        xpath = "//*[contains(text(),'Fat. EG')]/following-sibling::* | //*[contains(text(),'Fat. EG')]/../following-sibling::*"
-        todos = driver.find_elements(By.XPATH, "//*[contains(@class,'pivotTableCellWrap') or contains(@class,'ui-grid-cell-contents')]")
-        lista = [e.text.strip() for e in todos if e.text.strip()]
-        for i, val in enumerate(lista):
-            if "Fat. EG" in val:
-                for j in range(i+1, min(i+5, len(lista))):
-                    prox = lista[j]
-                    if "R$" in prox or (any(c.isdigit() for c in prox) and "," in prox):
-                        return prox
+        # Acha o container que tem Fat. EG e Fat. Loja (tabela de royalties)
+        xp = "//div[contains(@class,'visualContainer')][.//*[contains(text(),'Fat. EG')] and .//*[contains(text(),'Fat. Loja')]]"
+        container = driver.find_element(By.XPATH, xp)
+        celulas = container.find_elements(By.CSS_SELECTOR, ".pivotTableCellWrap, .ui-grid-cell-contents")
+        lista = [c.text.strip() for c in celulas if c.text.strip()]
+
+        # Descobre a posição de "Fat. EG" entre os cabeçalhos
+        headers = [x for x in lista if not ("R$" in x or (any(d.isdigit() for d in x) and "," in x))]
+        valores = [x for x in lista if "R$" in x or (any(d.isdigit() for d in x) and "," in x and len(x) < 20)]
+
+        if "Fat. EG" in headers:
+            idx = headers.index("Fat. EG")
+            if idx < len(valores):
+                return valores[idx]
     except: pass
     return "Não encontrado"
 
