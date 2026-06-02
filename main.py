@@ -224,21 +224,47 @@ def extrair_tabela_gorjeta(driver, tabela_element):
         i+=1 
     return html + "</table>"
 
-def enviar_email(anexo, mes, ano, html_comissao, html_gorjeta, meta_valor, valor_faturado):
+def extrair_fat_eg(driver):
+    try:
+        xpath = "//*[contains(text(),'Fat. EG')]/following-sibling::* | //*[contains(text(),'Fat. EG')]/../following-sibling::*"
+        todos = driver.find_elements(By.XPATH, "//*[contains(@class,'pivotTableCellWrap') or contains(@class,'ui-grid-cell-contents')]")
+        lista = [e.text.strip() for e in todos if e.text.strip()]
+        for i, val in enumerate(lista):
+            if "Fat. EG" in val:
+                for j in range(i+1, min(i+5, len(lista))):
+                    prox = lista[j]
+                    if "R$" in prox or (any(c.isdigit() for c in prox) and "," in prox):
+                        return prox
+    except: pass
+    return "Não encontrado"
+
+def valor_para_float(texto):
+    try:
+        limpo = texto.replace("R$", "").replace(".", "").replace(",", ".").strip()
+        return float(limpo)
+    except: return 0.0
+
+def enviar_email(anexo, mes, ano, html_comissao, html_gorjeta, meta_valor, valor_faturado_loja, valor_faturado_eg):
     if not EMAIL_REMETENTE or not SENHA_APP: return
     msg = MIMEMultipart('related')
     msg['Subject'] = f"[TS Flamboyant] Comissões e Gorjetas - {mes}/{ano}"
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = EMAIL_DESTINATARIO
-    
+
     texto_meta = f"R$ {meta_valor}" if meta_valor else "Não capturada"
-    texto_faturado = valor_faturado if "R$" in str(valor_faturado) else f"R$ {valor_faturado}"
-    
+    txt_loja = valor_faturado_loja if "R$" in str(valor_faturado_loja) else f"R$ {valor_faturado_loja}"
+    txt_eg   = valor_faturado_eg  if "R$" in str(valor_faturado_eg)  else f"R$ {valor_faturado_eg}"
+
+    total = valor_para_float(txt_loja) + valor_para_float(txt_eg)
+    txt_total = f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
     html = f"""<html><body>
     <h2 style='color:#0f4c3a;'>Relatório de Comissionamento</h2>
     <p>Ref: <b>{mes}/{ano}</b></p>
     <p><b>Meta da Loja: {texto_meta}</b></p>
-    <p><b>Faturado: <span style='color: blue;'>{texto_faturado}</span></b></p>
+    <p><b>Faturado Loja: <span style='color: blue;'>{txt_loja}</span></b></p>
+    <p><b>Faturado EG: <span style='color: blue;'>{txt_eg}</span></b></p>
+    <p><b>Faturado Total: <span style='color: blue;'>{txt_total}</span></b></p>
     <br>
     {html_comissao}
     <br>
@@ -303,17 +329,19 @@ def executar_robo():
         if not tab_gorjeta and tabelas_possiveis: tab_gorjeta = tabelas_possiveis[0]
         html_gorjeta = extrair_tabela_gorjeta(driver, tab_gorjeta) if tab_gorjeta else "<p>Erro tab. gorjeta</p>"
         
+        # 3. Fat. EG
+        driver.switch_to.default_content()
+        valor_fat_eg = extrair_fat_eg(driver)
+
         if tab_comissao: tab_comissao.screenshot(arq)
         else: driver.save_screenshot(arq)
-        
-        return arq, mes_dd, ano_dd, html_comissao, html_gorjeta, valor_meta, valor_faturado
+
+        return arq, mes_dd, ano_dd, html_comissao, html_gorjeta, valor_meta, valor_faturado, valor_fat_eg
     finally: driver.quit()
 
 if __name__ == "__main__":
     try:
-        # Recebendo os 7 valores do robô
-        a, m, y, h_comissao, h_gorjeta, meta, faturado = executar_robo()
-        # Enviando para a função com os 7 argumentos necessários
-        enviar_email(a, m, y, h_comissao, h_gorjeta, meta, faturado)
+        a, m, y, h_comissao, h_gorjeta, meta, faturado_loja, faturado_eg = executar_robo()
+        enviar_email(a, m, y, h_comissao, h_gorjeta, meta, faturado_loja, faturado_eg)
     except Exception as e: 
         print(f"Erro: {e}")
