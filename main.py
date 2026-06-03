@@ -34,20 +34,20 @@ def forcar_clique(driver, elemento):
     driver.execute_script("arguments[0].click();", elemento)
 
 def ler_meta_planilha_h59():
-    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: LINHA 48) ---")
+    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: H59) ---")
     try:
         url_csv = f"{URL_PLANILHA}/gviz/tq?tqx=out:csv&sheet=LOJA"
         df = pd.read_csv(url_csv, header=None, dtype=str, skip_blank_lines=False, on_bad_lines='skip', engine='python')
-        
-        linha_alvo = 0
-        coluna_alvo = 1
-        
+
+        linha_alvo = 58   # linha 59 (índice 0)
+        coluna_alvo = 7   # coluna H (índice 0 = A, 7 = H)
+
         if len(df) > linha_alvo:
             valor_bruto = str(df.iloc[linha_alvo, coluna_alvo])
             if valor_bruto and valor_bruto.lower() != 'nan':
                 valor_limpo = valor_bruto.replace('R$', '').replace(' ', '').replace('.', '')
                 valor_limpo = re.sub(r'[^\d,]', '', valor_limpo)
-                print(f"✅ VALOR CAPTURADO: {valor_limpo}")
+                print(f"✅ VALOR CAPTURADO (H59): {valor_limpo}")
                 return valor_limpo
         return None
     except Exception as e:
