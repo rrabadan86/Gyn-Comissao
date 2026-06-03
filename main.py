@@ -34,38 +34,21 @@ def forcar_clique(driver, elemento):
     driver.execute_script("arguments[0].click();", elemento)
 
 def ler_meta_planilha_h59():
-    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: H59) ---")
-    def limpar(valor_bruto):
-        if valor_bruto and str(valor_bruto).lower() != 'nan':
-            v = str(valor_bruto).replace('R$', '').replace(' ', '').replace('.', '')
-            v = re.sub(r'[^\d,]', '', v)
-            return v if v else None
-        return None
-
+    print("\n--- 📊 INICIANDO LEITURA DA PLANILHA (ALVO: LINHA 48) ---")
     try:
-        # headers=0 impede o gviz de remover a 1ª linha como cabeçalho,
-        # garantindo que o índice 58 corresponda exatamente à linha 59 (H59).
-        url_csv = f"{URL_PLANILHA}/gviz/tq?tqx=out:csv&sheet=LOJA&headers=0"
+        url_csv = f"{URL_PLANILHA}/gviz/tq?tqx=out:csv&sheet=LOJA"
         df = pd.read_csv(url_csv, header=None, dtype=str, skip_blank_lines=False, on_bad_lines='skip', engine='python')
-
-        # Alvo primário: H59 (linha índice 58, coluna H índice 7)
-        if len(df) > 58 and df.shape[1] > 7:
-            valor = limpar(df.iloc[58, 7])
-            if valor:
-                print(f"✅ VALOR CAPTURADO (H59): {valor}")
-                return valor
-
-        # Fallback: procura a linha 'Meta Atual' e pega o 1º valor numérico à direita
-        for r in range(len(df)):
-            linha = [str(x) for x in df.iloc[r].tolist()]
-            if any("Meta Atual" in c for c in linha):
-                for c in linha:
-                    if any(d.isdigit() for d in c) and ("," in c or "R$" in c):
-                        valor = limpar(c)
-                        if valor:
-                            print(f"✅ VALOR CAPTURADO (Meta Atual): {valor}")
-                            return valor
-        print("⚠️ Meta não localizada na planilha.")
+        
+        linha_alvo = 0
+        coluna_alvo = 1
+        
+        if len(df) > linha_alvo:
+            valor_bruto = str(df.iloc[linha_alvo, coluna_alvo])
+            if valor_bruto and valor_bruto.lower() != 'nan':
+                valor_limpo = valor_bruto.replace('R$', '').replace(' ', '').replace('.', '')
+                valor_limpo = re.sub(r'[^\d,]', '', valor_limpo)
+                print(f"✅ VALOR CAPTURADO: {valor_limpo}")
+                return valor_limpo
         return None
     except Exception as e:
         print(f"Erro planilha: {e}")
